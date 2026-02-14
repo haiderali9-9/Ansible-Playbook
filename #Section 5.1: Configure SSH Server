@@ -46,7 +46,7 @@
     ssh_max_startups: "10:30:60"
 
     # SSH Public Key Deployment
-    ssh_default_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINnT6rEb1kdbRvqGsnzXSMzqm+Z4f3BXg2yZjNqiwlrA user@LAPTOP-NS5GPVIA"
+    ssh_default_public_key: "XXXXXXXXXXXXXXXXXXXXXXXXXXX"
 
   tasks:
     # 5.1.1 Ensure access to /etc/ssh/sshd_config is configured
