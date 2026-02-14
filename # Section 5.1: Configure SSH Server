@@ -1,0 +1,501 @@
+---
+# CIS Red Hat Enterprise Linux 10 Benchmark v1.0.1
+# Section 5.1: Configure SSH Server
+# Ansible Playbook for SSH Hardening 
+
+# Purpose:
+#   This playbook hardens the SSH server configuration on RHEL 10 systems
+#   according to the CIS RHEL 10 Benchmark v1.0.1. It enforces secure 
+#   settings, including:
+#     - Restricting access to SSH configuration and key files
+#     - Enforcing key-based authentication and disabling passwords
+#     - Limiting root and empty-password logins
+#     - Configuring secure ciphers, MACs, and KEX algorithms
+#     - Setting login timeouts, authentication retries, and session limits
+#     - Deploying a default authorized public key for allowed users
+#     - Configuring SSH banners and auditing
+# Scope:
+#   - Applies to all hosts targeted in the inventory
+#   - Requires root privileges (become: yes)
+#   - Implements both CIS benchmark defaults and custom SSH hardening rules
+#
+# Usage:
+#   ansible-playbook -i inventory_file ssh_hardening.yml
+
+- name: CIS RHEL 10 - SSH Server Hardening
+  hosts: all
+  become: yes
+  vars:
+    # SSH Configuration Variables
+    sshd_config_file: "/etc/ssh/sshd_config"
+    sshd_banner_file: "/etc/issue.net"
+    ssh_custom_fragment: "/etc/ssh/sshd_config.d/30-custom-ssh.conf"
+    ssh_allow_users: "ec2-user"
+
+    # Custom SSH Algorithms 
+    ssh_ciphers: "aes256-gcm@openssh.com,chacha20-poly1305@openssh.com,aes256-ctr,aes128-gcm@openssh.com,aes128-ctr"
+    ssh_kex_algorithms: "mlkem768x25519-sha256,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group14-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512"
+    ssh_macs: "hmac-sha2-256-etm@openssh.com,hmac-sha1-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha2-256,hmac-sha1,umac-128@openssh.com,hmac-sha2-512"
+
+    # Custom SSH Client Settings
+    ssh_client_alive_interval: 300
+    ssh_client_alive_count_max: 0
+    ssh_login_grace_time: 60
+    ssh_max_auth_tries: 4
+    ssh_max_sessions: 10
+    ssh_max_startups: "10:30:60"
+
+    # SSH Public Key Deployment
+    ssh_default_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINnT6rEb1kdbRvqGsnzXSMzqm+Z4f3BXg2yZjNqiwlrA user@LAPTOP-NS5GPVIA"
+
+  tasks:
+    # 5.1.1 Ensure access to /etc/ssh/sshd_config is configured
+    - name: 5.1.1 - Set permissions on /etc/ssh/sshd_config
+      file:
+        path: "{{ sshd_config_file }}"
+        owner: root
+        group: root
+        mode: '0600'
+      tags:
+        - level1
+        - automated
+        - section5.1.1
+
+    # 5.1.2 Ensure access to SSH private host key files is configured
+    - name: 5.1.2 - Find SSH private host key files
+      find:
+        paths: /etc/ssh
+        patterns: 'ssh_host_*_key'
+        file_type: file
+      register: ssh_private_keys
+      tags:
+        - level1
+        - automated
+        - section5.1.2
+
+    - name: 5.1.2 - Set permissions on SSH private host key files
+      file:
+        path: "{{ item.path }}"
+        owner: root
+        group: root
+        mode: '0600'
+      loop: "{{ ssh_private_keys.files }}"
+      when: ssh_private_keys.files | length > 0
+      tags:
+        - level1
+        - automated
+        - section5.1.2
+
+    # 5.1.3 Ensure access to SSH public host key files is configured
+    - name: 5.1.3 - Find SSH public host key files
+      find:
+        paths: /etc/ssh
+        patterns: 'ssh_host_*_key.pub'
+        file_type: file
+      register: ssh_public_keys
+      tags:
+        - level1
+        - automated
+        - section5.1.3
+
+    - name: 5.1.3 - Set permissions on SSH public host key files
+      file:
+        path: "{{ item.path }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop: "{{ ssh_public_keys.files }}"
+      when: ssh_public_keys.files | length > 0
+      tags:
+        - level1
+        - automated
+        - section5.1.3
+
+    # 5.1.4 Ensure sshd access is configured
+    - name: 5.1.4 - Configure sshd AllowUsers (if defined)
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*AllowUsers'
+        line: "AllowUsers {{ ssh_allow_users }}"
+        state: present
+      when: ssh_allow_users is defined
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.4
+
+    - name: 5.1.4 - Configure sshd AllowGroups (if defined)
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*AllowGroups'
+        line: "AllowGroups {{ ssh_allow_groups }}"
+        state: present
+      when: ssh_allow_groups is defined
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.4
+
+    - name: 5.1.4 - Configure sshd DenyUsers (if defined)
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*DenyUsers'
+        line: "DenyUsers {{ ssh_deny_users }}"
+        state: present
+      when: ssh_deny_users is defined
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.4
+
+    - name: 5.1.4 - Configure sshd DenyGroups (if defined)
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*DenyGroups'
+        line: "DenyGroups {{ ssh_deny_groups }}"
+        state: present
+      when: ssh_deny_groups is defined
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.4
+
+    - name: Disable PasswordAuthentication
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*PasswordAuthentication'
+        line: "PasswordAuthentication no"
+        state: present
+      notify: restart sshd
+
+    - name: Enable PubkeyAuthentication
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*PubkeyAuthentication'
+        line: "PubkeyAuthentication yes"
+        state: present
+      notify: restart sshd
+
+    # 5.1.5 Ensure sshd Banner is configured
+    - name: 5.1.5 - Create SSH banner file
+      copy:
+        dest: "{{ sshd_banner_file }}"
+        content: |
+          Authorized access only!
+          Unauthorized access is prohibited and will be prosecuted.
+          All activities are monitored and recorded.
+        owner: root
+        group: root
+        mode: '0644'
+      tags:
+        - level1
+        - automated
+        - section5.1.5
+
+    - name: 5.1.5 - Configure sshd Banner
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*Banner'
+        line: "Banner {{ sshd_banner_file }}"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.5
+
+    # 5.1.6 Ensure sshd Ciphers are configured
+    - name: 5.1.6 - Configure sshd Ciphers in custom fragment
+      lineinfile:
+        path: "{{ ssh_custom_fragment }}"
+        regexp: '^\s*Ciphers'
+        line: "Ciphers {{ ssh_ciphers }}"
+        create: yes
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.6
+
+    # 5.1.7 Ensure sshd ClientAliveInterval and ClientAliveCountMax are configured
+    - name: 5.1.7 - Configure sshd ClientAliveInterval
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*ClientAliveInterval'
+        line: "ClientAliveInterval {{ ssh_client_alive_interval }}"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.7
+
+    - name: 5.1.7 - Configure sshd ClientAliveCountMax
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*ClientAliveCountMax'
+        line: "ClientAliveCountMax {{ ssh_client_alive_count_max }}"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.7
+
+    # 5.1.8 Ensure sshd DisableForwarding is enabled
+    - name: 5.1.8 - Configure sshd DisableForwarding
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*DisableForwarding'
+        line: "DisableForwarding yes"
+        state: present
+      notify: restart sshd
+      tags:
+        - level2
+        - automated
+        - section5.1.8
+
+    # 5.1.9 Ensure sshd GSSAPIAuthentication is disabled
+    - name: 5.1.9 - Configure sshd GSSAPIAuthentication
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*GSSAPIAuthentication'
+        line: "GSSAPIAuthentication no"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.9
+
+    # 5.1.10 Ensure sshd HostbasedAuthentication is disabled
+    - name: 5.1.10 - Configure sshd HostbasedAuthentication
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*HostbasedAuthentication'
+        line: "HostbasedAuthentication no"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.10
+
+    # 5.1.11 Ensure sshd IgnoreRhosts is enabled
+    - name: 5.1.11 - Configure sshd IgnoreRhosts
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*IgnoreRhosts'
+        line: "IgnoreRhosts yes"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.11
+
+    # 5.1.12 Ensure sshd KexAlgorithms is configured
+    - name: 5.1.12 - Configure sshd KexAlgorithms in custom fragment
+      lineinfile:
+        path: "{{ ssh_custom_fragment }}"
+        regexp: '^\s*KexAlgorithms'
+        line: "KexAlgorithms {{ ssh_kex_algorithms }}"
+        create: yes
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.12
+
+    # 5.1.13 Ensure sshd LoginGraceTime is configured
+    - name: 5.1.13 - Configure sshd LoginGraceTime
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*LoginGraceTime'
+        line: "LoginGraceTime {{ ssh_login_grace_time }}"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.13
+
+    # 5.1.14 Ensure sshd LogLevel is configured
+    - name: 5.1.14 - Configure sshd LogLevel
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*LogLevel'
+        line: "LogLevel VERBOSE"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.14
+
+    # 5.1.15 Ensure sshd MACs are configured
+    - name: 5.1.15 - Configure sshd MACs in custom fragment
+      lineinfile:
+        path: "{{ ssh_custom_fragment }}"
+        regexp: '^\s*MACs'
+        line: "MACs {{ ssh_macs }}"
+        create: yes
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.15
+
+    # 5.1.16 Ensure sshd MaxAuthTries is configured
+    - name: 5.1.16 - Configure sshd MaxAuthTries
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*MaxAuthTries'
+        line: "MaxAuthTries {{ ssh_max_auth_tries }}"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.16
+
+    # 5.1.17 Ensure sshd MaxStartups is configured
+    - name: 5.1.17 - Configure sshd MaxStartups
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*MaxStartups'
+        line: "MaxStartups {{ ssh_max_startups }}"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.17
+
+    # 5.1.18 Ensure sshd MaxSessions is configured
+    - name: 5.1.18 - Configure sshd MaxSessions
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*MaxSessions'
+        line: "MaxSessions {{ ssh_max_sessions }}"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.18
+
+    # 5.1.19 Ensure sshd PermitEmptyPasswords is disabled
+    - name: 5.1.19 - Configure sshd PermitEmptyPasswords
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*PermitEmptyPasswords'
+        line: "PermitEmptyPasswords no"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.19
+
+    # 5.1.20 Ensure sshd PermitRootLogin is disabled
+    - name: 5.1.20 - Configure sshd PermitRootLogin
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*PermitRootLogin'
+        line: "PermitRootLogin no"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.20
+
+    # 5.1.21 Ensure sshd PermitUserEnvironment is disabled
+    - name: 5.1.21 - Configure sshd PermitUserEnvironment
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*PermitUserEnvironment'
+        line: "PermitUserEnvironment no"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.21
+
+    # 5.1.22 Ensure sshd UsePAM is enabled
+    - name: 5.1.22 - Configure sshd UsePAM
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*UsePAM'
+        line: "UsePAM yes"
+        state: present
+      notify: restart sshd
+      tags:
+        - level1
+        - automated
+        - section5.1.22
+
+    # Custom - Ensure default SSH public key is deployed for allowed user
+    - name: Deploy default SSH public key for allowed user
+      authorized_key:
+        user: "{{ ssh_allow_users }}"
+        key: "{{ ssh_default_public_key }}"
+        state: present
+      notify: restart sshd
+      tags:
+        - automated
+        - custom
+
+    # Custom - Ensure SSH allows only public key authentication
+    - name: Enable PubkeyAuthentication
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*PubkeyAuthentication'
+        line: "PubkeyAuthentication yes"
+        state: present
+      notify: restart sshd
+      tags:
+        - automated
+        - custom
+
+    # Custom - Ensure password authentication is disabled
+    - name: Disable PasswordAuthentication
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*PasswordAuthentication'
+        line: "PasswordAuthentication no"
+        state: present
+      notify: restart sshd
+      tags:
+        - automated
+        - custom
+     
+    # Custom - Ensure ChallengeResponseAuthentication is disabled
+    - name: Disable ChallengeResponseAuthentication
+      lineinfile:
+        path: "{{ sshd_config_file }}"
+        regexp: '^\s*#?\s*ChallengeResponseAuthentication'
+        line: "ChallengeResponseAuthentication no"
+        state: present
+      notify: restart sshd
+      tags:
+       - automated
+       - custom
+
+
+  handlers:
+    - name: restart sshd
+      block:
+        - name: Validate sshd configuration
+          command: /usr/sbin/sshd -t
+
+        - name: Restart sshd service
+          service:
+            name: sshd
+            state: restarted
