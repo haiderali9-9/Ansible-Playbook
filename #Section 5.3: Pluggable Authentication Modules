@@ -379,7 +379,7 @@
     # 5.3.2.3.3 Ensure pam_pwhistory includes use_authtok (Automated)
     - name: 5.3.2.3.3 - Verify pam_pwhistory uses use_authtok
       shell: |
-        grep -P -- '^\\h*password\\h+([^#\\n\\r]+)\\h+pam_pwhistory\\.so\\h+([^#\\n\\r]+\\h+)?use_authtok\\b' /etc/pam.d/{password,system}-auth
+        grep -Pi '^\h*password\h+.*\bpam_pwhistory\.so\b.*\buse_authtok\b' /etc/pam.d/{password,system}-auth
       register: pwhistory_authtok_check
       changed_when: false
       failed_when: false
@@ -400,7 +400,7 @@
     # 5.3.2.4.1 Ensure pam_unix does not include nullok (Automated)
     - name: 5.3.2.4.1 - Verify pam_unix does not include nullok
       shell: |
-        grep -Pi '^\\h*password\\h+([^#\\n\\r]+\\h+)?pam_unix\\.so\\b' /etc/pam.d/{password,system}-auth | grep -v 'nullok'
+        grep -Pi '^\h*password\h+.*\bpam_unix\.so\b' /etc/pam.d/{password,system}-auth | grep -v '\bnullok\b'
       register: unix_nullok_check
       changed_when: false
       failed_when: false
@@ -421,7 +421,7 @@
     # 5.3.2.4.2 Ensure pam_unix does not include remember (Automated)
     - name: 5.3.2.4.2 - Verify pam_unix does not include remember
       shell: |
-        grep -Pi '^\\h*password\\h+([^#\\n\\r]+\\h+)?pam_unix\\.so\\b' /etc/pam.d/{password,system}-auth | grep -v 'remember='
+        grep -Pi '^\h*password\h+.*\bpam_unix\.so\b' /etc/pam.d/{password,system}-auth | grep -v '\bremember='
       register: unix_remember_check
       changed_when: false
       failed_when: false
@@ -442,7 +442,7 @@
     # 5.3.2.4.3 Ensure pam_unix includes a strong password hashing algorithm (Automated)
     - name: 5.3.2.4.3 - Verify pam_unix uses strong hashing algorithm
       shell: |
-        grep -P -- '^\\h*password\\h+([^#\\n\\r]+)\\h+pam_unix\\.so\\h+([^#\\n\\r]+\\h+)?(sha512|yescrypt)\\b' /etc/pam.d/{password,system}-auth
+        grep -Pi '^\h*password\h+.*\bpam_unix\.so\b.*\b(sha512|yescrypt)\b' /etc/pam.d/{password,system}-auth
       register: unix_hash_check
       changed_when: false
       failed_when: false
@@ -463,7 +463,7 @@
     # 5.3.2.4.4 Ensure pam_unix includes use_authtok (Automated)
     - name: 5.3.2.4.4 - Verify pam_unix uses use_authtok
       shell: |
-        grep -P -- '^\\h*password\\h+([^#\\n\\r]+)\\h+pam_unix\\.so\\h+([^#\\n\\r]+\\h+)?use_authtok\\b' /etc/pam.d/{password,system}-auth
+        grep -Pi '^\h*password\h+.*\bpam_unix\.so\b.*\buse_authtok\b' /etc/pam.d/{password,system}-auth
       register: unix_authtok_check
       changed_when: false
       failed_when: false
