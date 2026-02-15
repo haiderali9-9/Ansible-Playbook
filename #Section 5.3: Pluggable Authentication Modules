@@ -94,6 +94,16 @@
         - level1
         - automated
         - section5.3.1.1
+    
+    - name: 5.3.1.1 - Get current authselect profile
+      command: authselect current
+      register: authselect_current
+      changed_when: false
+      failed_when: false
+      tags:
+        - level1
+        - automated
+        - section5.3.1.1
 
     - name: 5.3.1.1 - Select custom authselect profile with required features
       command:
@@ -103,6 +113,7 @@
           with-pwhistory
           without-nullok
           --force
+      when: "'custom/' ~ custom_profile_name not in authselect_current.stdout"
       tags:
         - level1
         - automated
