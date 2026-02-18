@@ -1,0 +1,275 @@
+---
+# =============================================================================
+# Playbook  : Install Docker Engine
+# Supported OS:
+#   - RHEL   8, 9, 10
+#   - Ubuntu 22.04 (Jammy), 24.04 (Noble)
+#
+# AVAILABLE TAGS:
+#   rhelinstall   - Removes conflicting packages first, then full RHEL install
+#   ubuntuinstall - Removes conflicting packages first, then full Ubuntu install
+#   uninstall     - Completely removes Docker + all data, config, dirs
+#
+# HOW TO RUN:
+#   ansible-playbook -i inventory.ini install_docker.yml
+#   ansible-playbook -i inventory.ini install_docker.yml --tags rhelinstall
+#   ansible-playbook -i inventory.ini install_docker.yml --tags ubuntuinstall
+#   ansible-playbook -i inventory.ini install_docker.yml --tags uninstall
+# =============================================================================
+
+- name: Install Docker Engine
+  hosts: all
+  become: true
+
+  tasks:
+
+    # ─────────────────────────────────────────
+    # RHEL
+    # ─────────────────────────────────────────
+    - name: RHEL | Remove conflicting packages
+      dnf:
+        name:
+          - docker
+          - docker-client
+          - docker-client-latest
+          - docker-common
+          - docker-latest
+          - docker-latest-logrotate
+          - docker-logrotate
+          - docker-engine
+          - podman
+          - runc
+        state: absent
+      when: ansible_os_family == "RedHat"
+      tags:
+        - rhelinstall
+
+    - name: RHEL | Install dnf-plugins-core
+      dnf:
+        name: dnf-plugins-core
+        state: present
+      when: ansible_os_family == "RedHat"
+      tags:
+        - rhelinstall
+
+    - name: RHEL | Add Docker repository
+      get_url:
+        url: https://download.docker.com/linux/rhel/docker-ce.repo
+        dest: /etc/yum.repos.d/docker-ce.repo
+        mode: "0644"
+      when: ansible_os_family == "RedHat"
+      tags:
+        - rhelinstall
+
+    - name: RHEL | Refresh DNF cache after adding Docker repo
+      dnf:
+        update_cache: true
+      when: ansible_os_family == "RedHat"
+      tags:
+        - rhelinstall
+
+    - name: RHEL | Install Docker packages
+      dnf:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: latest
+      when: ansible_os_family == "RedHat"
+      tags:
+        - rhelinstall
+
+    - name: RHEL | Enable and start Docker service
+      systemd:
+        name: docker
+        enabled: true
+        state: started
+      when: ansible_os_family == "RedHat"
+      tags:
+        - rhelinstall
+
+    - name: RHEL | Verify Docker is running
+      command: docker run hello-world
+      register: rhel_hello_world
+      changed_when: false
+      when: ansible_os_family == "RedHat"
+      tags:
+        - rhelinstall
+
+    - name: RHEL | Show hello-world output
+      debug:
+        var: rhel_hello_world.stdout_lines
+      when: ansible_os_family == "RedHat"
+      tags:
+        - rhelinstall
+
+    # ─────────────────────────────────────────
+    # Ubuntu
+    # ─────────────────────────────────────────
+    - name: Ubuntu | Remove conflicting packages
+      apt:
+        name:
+          - docker.io
+          - docker-compose
+          - docker-compose-v2
+          - docker-doc
+          - podman-docker
+          - containerd
+          - runc
+        state: absent
+      when: ansible_distribution == "Ubuntu"
+      tags:
+        - ubuntuinstall
+
+    - name: Ubuntu | Install prerequisites
+      apt:
+        name:
+          - ca-certificates
+          - curl
+        state: present
+        update_cache: true
+      when: ansible_distribution == "Ubuntu"
+      tags:
+        - ubuntuinstall
+
+    - name: Ubuntu | Create keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+      when: ansible_distribution == "Ubuntu"
+      tags:
+        - ubuntuinstall
+
+    - name: Ubuntu | Download Docker GPG key
+      get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0444"
+      when: ansible_distribution == "Ubuntu"
+      tags:
+        - ubuntuinstall
+
+    - name: Ubuntu | Add Docker apt repository using .sources format
+      copy:
+        dest: /etc/apt/sources.list.d/docker.sources
+        content: |
+          Types: deb
+          URIs: https://download.docker.com/linux/ubuntu
+          Suites: {{ ansible_distribution_release }}
+          Components: stable
+          Signed-By: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+      when: ansible_distribution == "Ubuntu"
+      tags:
+        - ubuntuinstall
+
+    - name: Ubuntu | Refresh APT cache after adding Docker repo
+      apt:
+        update_cache: true
+      when: ansible_distribution == "Ubuntu"
+      tags:
+        - ubuntuinstall
+
+    - name: Ubuntu | Install Docker packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: latest
+        update_cache: true
+      when: ansible_distribution == "Ubuntu"
+      tags:
+        - ubuntuinstall
+
+    - name: Ubuntu | Enable and start Docker service
+      systemd:
+        name: docker
+        enabled: true
+        state: started
+      when: ansible_distribution == "Ubuntu"
+      tags:
+        - ubuntuinstall
+
+    - name: Ubuntu | Verify Docker is running
+      command: docker run hello-world
+      register: ubuntu_hello_world
+      changed_when: false
+      when: ansible_distribution == "Ubuntu"
+      tags:
+        - ubuntuinstall
+
+    - name: Ubuntu | Show hello-world output
+      debug:
+        var: ubuntu_hello_world.stdout_lines
+      when: ansible_distribution == "Ubuntu"
+      tags:
+        - ubuntuinstall
+
+    # ─────────────────────────────────────────
+    # UNINSTALL — complete cleanup (both OS)
+    # ─────────────────────────────────────────
+    - name: RHEL | Uninstall Docker packages
+      dnf:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+          - docker-ce-rootless-extras
+        state: absent
+      when: ansible_os_family == "RedHat"
+      tags:
+        - uninstall
+
+    - name: RHEL | Remove Docker data and config directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /var/lib/docker
+        - /var/lib/containerd
+        - /etc/docker
+        - /etc/yum.repos.d/docker-ce.repo
+        - /run/docker
+        - /run/docker.sock
+      when: ansible_os_family == "RedHat"
+      tags:
+        - uninstall
+
+    - name: Ubuntu | Uninstall Docker packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+          - docker-ce-rootless-extras
+        state: absent
+        purge: true
+      when: ansible_distribution == "Ubuntu"
+      tags:
+        - uninstall
+
+    - name: Ubuntu | Remove Docker data and config directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /var/lib/docker
+        - /var/lib/containerd
+        - /etc/docker
+        - /etc/apt/keyrings/docker.asc
+        - /etc/apt/sources.list.d/docker.sources
+        - /run/docker
+        - /run/docker.sock
+      when: ansible_distribution == "Ubuntu"
+      tags:
+        - uninstall
